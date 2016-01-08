@@ -192,6 +192,10 @@ class PythonEval : public GenericEval
         void print_root_dictionary()
             { this->print_dictionary(PyModule_GetDict(_pyRootModule)); }
 
+        /**
+         * Python Utility function that replaces PyString_AsString from python2
+         */
+        static char* pyObjectToCString(PyObject* obj);
 };
 
 /**

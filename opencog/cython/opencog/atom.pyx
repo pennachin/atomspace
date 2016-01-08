@@ -27,7 +27,7 @@ cdef class Atom(object):
 
     property h:
         def __get__(self): return self.handle
-    
+
     property name:
         def __get__(self):
             if self._name is None:
@@ -93,10 +93,12 @@ cdef class Atom(object):
         return is_a(self.t,t)
 
     def long_string(self):
-        return self.atomspace.get_atom_string(self.handle,terse=False)
+        c_string = self.atomspace.get_atom_string(self.handle,terse=False)
+        return c_string.decode()
 
     def __str__(self):
-        return self.atomspace.get_atom_string(self.handle,terse=True)
+        c_string = self.atomspace.get_atom_string(self.handle,terse=True)
+        return c_string.decode()
 
     def __repr__(self):
         return self.long_string()
@@ -106,7 +108,7 @@ cdef class Atom(object):
             return NotImplemented
         cdef Atom a1 = a1_
         cdef Atom a2 = a2_
-        
+
         is_equal = True
         if a1.atomspace != a2.atomspace:
             is_equal = False

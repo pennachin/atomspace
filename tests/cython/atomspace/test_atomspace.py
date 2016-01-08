@@ -428,8 +428,8 @@ class TypeTest(TestCase):
         self.assertFalse(is_a(types.Link, types.Node))
 
     def test_get_type(self):
-        self.assertEqual(get_type("ConceptNode"), types.ConceptNode)
-        self.assertEqual(get_type(""), types.NO_TYPE)
+        self.assertEqual(get_type("ConceptNode".encode('utf-8')), types.ConceptNode)
+        self.assertEqual(get_type("".encode('utf-8')), types.NO_TYPE)
         self.assertRaises(TypeError, get_type, 1)
 
     def test_get_type_name(self):

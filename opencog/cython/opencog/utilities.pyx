@@ -1,8 +1,8 @@
 from opencog.atomspace cimport AtomSpace
 from opencog.type_constructors import set_type_ctor_atomspace
 
-cdef extern from "Python.h":
-    char *PyString_AsString(object)
+cdef extern from "../PythonEval.h" namespace "opencog::PythonEval":
+    char* pyObjectToCString(object)
 
 # Avoid recursive intialization
 is_initialized = False
@@ -19,7 +19,7 @@ def initialize_opencog(AtomSpace atomspace, object config = None):
     if (config == None):
         configFileString = NULL
     else:
-        configFileString = PyString_AsString(config)
+        configFileString = pyObjectToCString(config)
     c_initialize_opencog(atomspace.atomspace, configFileString)
     set_type_ctor_atomspace(atomspace)
 
@@ -28,5 +28,5 @@ def finalize_opencog():
     set_type_ctor_atomspace(None)
 
 def configuration_load(object config):
-    cdef char *configFileString = PyString_AsString(config)
+    cdef char *configFileString = pyObjectToCString(config)
     c_configuration_load(configFileString)

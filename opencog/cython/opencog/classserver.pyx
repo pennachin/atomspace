@@ -28,7 +28,8 @@ cdef c_get_type(char *type_name):
 
 # Atom type methods.
 def get_type_name(t):
-    return c_get_type_name(t)
+    c_string = c_get_type_name(t)
+    return c_string.decode()
 
 def get_type(name):
     return c_get_type(name)
@@ -44,27 +45,27 @@ def is_a(Type t1, Type t2):
 #    class_ = type(name, (object, ), {})
 #    setattr(mod, name, class_)
 
-types = {}
+#types = {}
 cdef generate_type_module():
-    global types
+#    global types
     types = {}
     cdef string s
-    # print "Class server has num types=", classserver().getNumberOfClasses()
+    #print("Class server has num types=", classserver().getNumberOfClasses())
     for i in range(0, classserver().getNumberOfClasses()):
         s = classserver().getTypeName(i)
         assert s.size() > 0, "Got blank type name while generating types module"
-        types[s.c_str()] = i
-        # print "type ", i, " has name ", s
+        types[s.decode('utf-8')] = i
+        #print("type " + str(i) + " has name " + s.decode('utf-8'))
     types["NO_TYPE"] = NOTYPE
     return types
 
 types = type('atom_types', (), generate_type_module())
 
 #This function is for refreshing new types
-#ex. When you import a cython module which include non-core atom types in C++ 
+#ex. When you import a cython module which include non-core atom types in C++
 #And you can refresh these new types by this function
 
-def get_refreshed_types():    
+def get_refreshed_types():
     global types
     types = type('atom_types', (), generate_type_module())
     return types

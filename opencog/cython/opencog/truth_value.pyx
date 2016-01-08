@@ -14,7 +14,7 @@ cdef class TruthValue:
 
     def __cinit__(self, strength=1.0, confidence=0.0):
         # By default create a SimpleTruthValue
-        self.cobj = new tv_ptr(new cSimpleTruthValue(strength, self.confidence_to_count(confidence))) 
+        self.cobj = new tv_ptr(new cSimpleTruthValue(strength, self.confidence_to_count(confidence)))
 
     def __dealloc__(self):
         # This deletes the *smart pointer*, not the actual pointer
@@ -48,7 +48,7 @@ cdef class TruthValue:
         " @todo support the rest of the comparison operators"
         if op == 2: # ==
             return deref(h1._ptr()) == deref(h2._ptr())
-        
+
         raise ValueError, "TruthValue does not yet support most comparison operators"
 
     cdef cTruthValue* _ptr(self):
@@ -61,7 +61,8 @@ cdef class TruthValue:
         return PyLong_FromVoidPtr(<void*>self.cobj)
 
     def __str__(self):
-        return self._ptr().toString().c_str()
+        c_string = self._ptr().toString()
+        return c_string.decode('utf-8')
 
     @staticmethod
     def confidence_to_count(float conf):

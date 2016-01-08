@@ -158,7 +158,6 @@ static const char** get_module_paths()
     return paths;
 }
 
-
 /**
  * Ongoing python nuttiness. Because we never know in advance whether
  * python will be able to find a module or not, until it actually does,
@@ -173,7 +172,6 @@ static const char** get_module_paths()
 static bool try_to_load_modules(const char ** config_paths)
 {
     PyObject* pySysPath = PySys_GetObject((char*)"path");
-
     // Add default OpenCog module directories to the Python interprator's path.
     for (int i = 0; config_paths[i] != NULL; ++i)
     {
@@ -224,8 +222,9 @@ static bool try_to_load_modules(const char ** config_paths)
         for (int i = 0; i < pathSize; i++)
         {
             PyObject* pySysPathLine = PyList_GetItem(pySysPath, i);
-            const char* sysPathCString = PyString_AsString(pySysPathLine);
-            logger().debug("    %2d > %s", i, sysPathCString);
+            const char* sysPathCString = PythonEval::pyObjectToCString(pySysPathLine);
+
+                        logger().debug("    %2d > %s", i, sysPathCString);
             // NOTE: PyList_GetItem returns borrowed reference so don't do this:
             // Py_DECREF(pySysPathLine);
         }
@@ -261,6 +260,14 @@ static bool try_to_load_modules(const char ** config_paths)
     return (NULL != py_atomspace);
 }
 
+static wchar_t* charToWChar(const char* text)
+{
+    size_t size = strlen(text) + 1;
+    wchar_t* wa = new wchar_t[size];
+    mbstowcs(wa,text,size);
+    return wa;
+}
+
 void opencog::global_python_initialize()
 {
     // We don't really know the gstate yet but we'll set it here to avoid
@@ -268,7 +275,6 @@ void opencog::global_python_initialize()
     PyGILState_STATE gstate = PyGILState_UNLOCKED;
 
     logger().debug("[global_python_initialize] Start");
-
     // Throw an exception if this is called more than once.
     if (already_initialized) {
         return;
@@ -299,7 +305,8 @@ void opencog::global_python_initialize()
         // So, avoid the error print, and let them know who we are.
         // We must do this *before* the module pre-loading, done below.
         static const char *argv0 = "cogserver";
-        PySys_SetArgv(1, (char **) &argv0);
+        wchar_t *wargv0 = charToWChar(argv0);
+        PySys_SetArgv(1, (wchar_t **) &wargv0);
     }
 
     logger().debug("[global_python_initialize] Adding OpenCog sys.path "
@@ -308,11 +315,12 @@ void opencog::global_python_initialize()
     // Get starting "sys.path".
     PyRun_SimpleString(
                 "import sys\n"
-                "import StringIO\n"
+                "import io\n"
                 );
 
     // Add default OpenCog module directories to the Python interprator's path.
-    try_to_load_modules(get_module_paths());
+    const char** paths = get_module_paths();
+    try_to_load_modules(paths);
 
     // Hmm. If the above returned false, we should try a different
     // permuation of the config paths.  I'm confused, though, different
@@ -329,12 +337,17 @@ void opencog::global_python_initialize()
 
 void opencog::global_python_finalize()
 {
+    fprintf(stderr,"x3.1\n");
     logger().debug("[global_python_finalize] Start");
 
+    fprintf(stderr,"x3.2\n");
     // Cleanup Python.
     if (!initialized_outside_opencog)
+    {
         Py_Finalize();
+    }
 
+    fprintf(stderr,"x3.3\n");
     // No longer initialized.
     already_initialized = false;
 
@@ -378,7 +391,9 @@ PythonEval::~PythonEval()
 
     // Grab the GIL
     PyGILState_STATE gstate;
+    fprintf(stderr,"-4\n");
     gstate = PyGILState_Ensure();
+    fprintf(stderr,"4\n");
 
     // Decrement reference counts for instance Python object references.
     Py_DECREF(_pyGlobal);
@@ -392,6 +407,7 @@ PythonEval::~PythonEval()
 
     // Release the GIL. No Python API allowed beyond this point.
     PyGILState_Release(gstate);
+    fprintf(stderr,"5\n");
 }
 
 /**
@@ -567,7 +583,8 @@ void PythonEval::build_python_error_message(    const char* function_name,
         errorStringStream << "in " << function_name;
     if (pyError) {
         pyErrorString = PyObject_Str(pyError);
-        char* pythonErrorString = PyString_AsString(pyErrorString);
+        char* pythonErrorString = pyObjectToCString(pyErrorString);
+
         if (pythonErrorString) {
             errorStringStream << ": " << pythonErrorString << ".";
         } else {
@@ -604,7 +621,7 @@ void PythonEval::execute_string(const char* command)
             pyRootDictionary, NO_COMPILER_FLAGS);
     if (pyResult)
         Py_DECREF(pyResult);
-    Py_FlushLine();
+    //Py_FlushLine(); might need to write EOL to stdout
 }
 
 int PythonEval::argument_count(PyObject* pyFunction)
@@ -614,11 +631,11 @@ int PythonEval::argument_count(PyObject* pyFunction)
     int argumentCount;
 
     // Get the 'function.func_code.co_argcount' Python internal attribute.
-    pyFunctionCode = PyObject_GetAttrString(pyFunction, "func_code");
+    pyFunctionCode = PyObject_GetAttrString(pyFunction, "__code__");
     if (pyFunctionCode) {
         pyArgumentCount = PyObject_GetAttrString(pyFunctionCode, "co_argcount");
         if (pyArgumentCount) {
-            argumentCount = PyInt_AsLong(pyArgumentCount);
+            argumentCount = PyLong_AsLong(pyArgumentCount);
         }  else {
             Py_DECREF(pyFunctionCode);
             return MISSING_FUNC_CODE;
@@ -899,8 +916,10 @@ TruthValuePtr PythonEval::apply_tv(AtomSpace *as, const std::string& func, Handl
 
 std::string PythonEval::apply_script(const std::string& script)
 {
+    fprintf(stderr,"2.011\n");
     std::lock_guard<std::recursive_mutex> lck(_mtx);
 
+    fprintf(stderr,"2.012\n");
     PyObject* pyError = NULL;
     PyObject *pyCatcher = NULL;
     PyObject *pyOutput = NULL;
@@ -908,19 +927,24 @@ std::string PythonEval::apply_script(const std::string& script)
     bool errorRunningScript;
     std::string errorString;
 
+    fprintf(stderr,"2.013\n");
     // Grab the GIL
     PyGILState_STATE gstate;
     gstate = PyGILState_Ensure();
 
-    PyRun_SimpleString("_opencog_output_stream = StringIO.StringIO()\n"
-                       "_python_output_stream = sys.stdout\n"
-                       "sys.stdout = _opencog_output_stream\n"
-                       "sys.stderr = _opencog_output_stream\n");
-
+    fprintf(stderr,"2.014\n");
+    //PyRun_SimpleString("_opencog_output_stream = io.BytesIO());
+    //PyRun_SimpleString("_opencog_output_stream = io.StringIO()");
+    //PyRun_SimpleString("_opencog_output_stream = io.TextIOWrapper()");
+                     //"_python_output_stream = sys.stdout\n"
+                     //"sys.stdout = _opencog_output_stream\n"
+                     //"sys.stderr = _opencog_output_stream\n");
+    fprintf(stderr,"2.02\n");
     // Execute the script. NOTE: This call replaces PyRun_SimpleString
     // which was masking errors because it calls PyErr_Clear() so the
     // call to PyErr_Occurred below was returning false even when there
     // was an error.
+    fprintf(stderr,"2.03\n");
     this->execute_string(script.c_str());
 
     // Check for errors in the script.
@@ -928,33 +952,41 @@ std::string PythonEval::apply_script(const std::string& script)
 
     // If the script executed without error...
     if (!pyError) {
+        fprintf(stderr,"2.10\n");
         // Get the output stream as a string so we can return it.
         errorRunningScript = false;
-        pyCatcher = PyObject_GetAttrString(_pyRootModule,
-                "_opencog_output_stream");
-        pyOutput = PyObject_CallMethod(pyCatcher, (char*)"getvalue", NULL);
-        result = PyBytes_AsString(pyOutput);
+     // pyCatcher = PyObject_GetAttrString(_pyRootModule,
+     //         "_opencog_output_stream");
+     // fprintf(stderr,"2.11\n");
+     // pyOutput = PyObject_CallMethod(pyCatcher, (char*)"getvalue", NULL);
+     // fprintf(stderr,"2.12\n");
+     // result = PyBytes_AsString(pyOutput);
 
-        // Cleanup reference counts for Python objects we no longer reference.
-        Py_DECREF(pyCatcher);
-        Py_DECREF(pyOutput);
-
+     // fprintf(stderr,"2.13\n");
+     // // Cleanup reference counts for Python objects we no longer reference.
+     // Py_DECREF(pyCatcher);
+     // Py_DECREF(pyOutput);
+        fprintf(stderr,"2.14\n");
     } else {
+        fprintf(stderr,"2.2\n");
         // Remember the error and get the error string for the throw below.
         errorRunningScript = true;
         this->build_python_error_message(NO_FUNCTION_NAME, errorString);
+        fprintf(stderr,errorString.c_str());
 
         // PyErr_Occurred returns a borrowed reference, so don't do this:
         // Py_DECREF(pyError);
     }
 
     // Close the output stream.
-    PyRun_SimpleString("sys.stdout = _python_output_stream\n"
-                       "sys.stderr = _python_output_stream\n"
-                       "_opencog_output_stream.close()\n");
+    //PyRun_SimpleString("sys.stdout = _python_output_stream\n"
+    //                   "sys.stderr = _python_output_stream\n"
+    //                   "_opencog_output_stream.close()\n");
 
     // Release the GIL. No Python API allowed beyond this point.
+    fprintf(stderr,"2.3\n");
     PyGILState_Release(gstate);
+    fprintf(stderr,"2.4\n");
 
     // If there was an error, throw an exception so the user knows the
     // script had a problem.
@@ -962,6 +994,7 @@ std::string PythonEval::apply_script(const std::string& script)
         throw RuntimeException(TRACE_INFO, "%s", errorString.c_str());
 
     // printf("Python says that: %s\n", result.c_str());
+    fprintf(stderr,"2.5\n");
     return result;
 }
 
@@ -1233,19 +1266,25 @@ void PythonEval::eval_expr(const std::string& partial_expr)
     // will crash the cogserver. Pass the exception message to
     // the user, who can read and contemplate it: it is almost
     // surely a syntax error in the python code.
+    fprintf(stderr,"1\n");
     _result = "";
     try
     {
+        fprintf(stderr,"2\n");
         _result = this->apply_script(_input_line);
+        fprintf(stderr,"3\n");
     }
     catch (const RuntimeException &e)
     {
+        fprintf(stderr,"4\n");
         _result = e.getMessage();
         _result += "\n";
+        fprintf(stderr,"5\n");
     }
     _input_line = "";
     _paren_count = 0;
     _pending_input = false;
+
     return;
 
 wait_for_more:
@@ -1261,4 +1300,27 @@ std::string PythonEval::poll_result()
     std::string r = _result;
     _result.clear();
     return r;
+}
+
+char* PythonEval::pyObjectToCString(PyObject* obj)
+{
+    char * res;
+    if (PyBytes_Check(obj)) {
+        res = PyBytes_AsString(obj);
+    } else if (PyUnicode_Check(obj)) {
+        PyObject * temp_bytes;
+        temp_bytes = PyUnicode_AsEncodedString(obj, "ASCII", "strict");
+        if (temp_bytes != NULL)
+        {
+            res = PyBytes_AsString(temp_bytes);
+            Py_DECREF(temp_bytes);
+        } else {
+            throw opencog::RuntimeException(TRACE_INFO,
+                "Python could not Encode String");
+        }
+    } else {
+        throw opencog::RuntimeException(TRACE_INFO,
+            "Python Object not a String");
+    }
+    return res;
 }

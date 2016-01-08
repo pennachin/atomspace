@@ -40,7 +40,7 @@ public:
         logger().setFilename(config()["LOG_FILE"]);
         logger().setLevel(Logger::getLevelFromString(config()["LOG_LEVEL"]));
         logger().setBackTraceLevel(Logger::getLevelFromString(config()["BACK_TRACE_LOG_LEVEL"]));
-        logger().setPrintToStdoutFlag(config().get_bool("LOG_TO_STDOUT"));
+        logger().setPrintToStdoutFlag(true); //config().get_bool("LOG_TO_STDOUT"));
     }
 
     ~PythonEvalUTest() {}
@@ -51,7 +51,7 @@ public:
 
     void testRawPythonInitialization()
     {
-        logger().debug("[PythonEvalUTest] testRawPythonInitialization()");
+        printf("[PythonEvalUTest] testRawPythonInitialization()");
 
         // Start up Python.
         Py_InitializeEx(NO_SIGNAL_HANDLERS);
@@ -89,12 +89,12 @@ public:
         // Stop Python.
         Py_Finalize();
 
-         logger().debug("[PythonEvalUTest] testRawPythonInitialization() DONE");
+         printf("[PythonEvalUTest] testRawPythonInitialization() DONE");
    }
 
     void testRawPythonInitializeWithGetSys()
     {
-        logger().debug("[PythonEvalUTest] testRawPythonInitializeWithGetSys()");
+        printf("[PythonEvalUTest] testRawPythonInitializeWithGetSys()");
 
         PyObject* pySysPath = NULL;
 
@@ -104,17 +104,18 @@ public:
 
         PyRun_SimpleString(
                     "import sys\n"
-                    "import StringIO\n"
+                    "import io \n"
                     );
+
         pySysPath = PySys_GetObject((char*)"path");
 
         if (logger().isDebugEnabled()) {
-            logger().debug("    Python 'sys.path' after OpenCog config adds is:");
+            printf("    Python 'sys.path' after OpenCog config adds is:");
             Py_ssize_t pathSize = PyList_Size(pySysPath);
             for (int pathIndex = 0; pathIndex < pathSize; pathIndex++) {
                 PyObject* pySysPathLine = PyList_GetItem(pySysPath, pathIndex);
-                const char* sysPathCString = PyString_AsString(pySysPathLine);
-                logger().debug("        %2d > %s", pathIndex, sysPathCString);
+                const char* sysPathCString = PythonEval::pyObjectToCString(pySysPathLine);
+                printf("        %2d > %s", pathIndex, sysPathCString);
                 // NOTE: PyList_GetItem returns borrowed reference so don't do this:
                 // Py_DECREF(pySysPathLine);
             }
@@ -122,7 +123,6 @@ public:
 
         // NOTE: PySys_GetObject returns a borrowed reference so don't do this:
         // Py_DECREF(pySysPath);
-
         PyEval_ReleaseLock();
         Py_Finalize();
 
@@ -132,7 +132,7 @@ public:
 
         PyRun_SimpleString(
                     "import sys\n"
-                    "import StringIO\n"
+                    "import io \n"
                     );
         pySysPath = PySys_GetObject((char*)"path");
 
@@ -142,12 +142,12 @@ public:
         PyEval_ReleaseLock();
         Py_Finalize();
 
-        logger().debug("[PythonEvalUTest] testRawPythonInitializeWithGetSys() DONE");
+        printf("[PythonEvalUTest] testRawPythonInitializeWithGetSys() DONE");
     }
 
     void testGlobalPythonInitializationFinalization()
     {
-        logger().debug("[PythonEvalUTest] testGlobalPythonInitializationFinalization()");
+        printf("[PythonEvalUTest] testGlobalPythonInitializationFinalization()");
 
         // Initialize and finalize Python.
         global_python_initialize();
@@ -157,12 +157,12 @@ public:
         global_python_initialize();
         global_python_finalize();
 
-        logger().debug("[PythonEvalUTest] testGlobalPythonInitializationFinalization() DONE");
+        printf("[PythonEvalUTest] testGlobalPythonInitializationFinalization() DONE");
     }
 
     void testPythonEvalSingletonCreationDeletion()
     {
-        logger().debug("[PythonEvalUTest] testPythonEvalSingletonCreationDeletion()");
+        printf("[PythonEvalUTest] testPythonEvalSingletonCreationDeletion()");
 
         AtomSpace* atomSpace = NULL;
 
@@ -225,12 +225,12 @@ public:
         // Cleanup Python.
         global_python_finalize();
 
-        logger().debug("[PythonEvalUTest] testPythonEvalSingletonCreationDeletion() DONE");
+        printf("[PythonEvalUTest] testPythonEvalSingletonCreationDeletion() DONE");
     }
 
     void testPythonEvalEvalExpr()
     {
-        logger().debug("[PythonEvalUTest] testPythonEvalEvalExpr()");
+        printf("[PythonEvalUTest] testPythonEvalEvalExpr()");
 
         // Initialize Python.
         global_python_initialize();
@@ -244,17 +244,21 @@ public:
         evaluator->clear_pending();
         evaluator->eval_expr("from opencog.atomspace import *");
         evaluator->eval_expr("ATOMSPACE.add_node(types.ConceptNode,'test')");
-        evaluator->eval_expr("print 'Total atoms = ', ATOMSPACE.size(), '\\n'");
+        evaluator->eval_expr("print('Total atoms = '+ str(ATOMSPACE.size()) + '\\n')");
 
         // Delete the singleton instance and atomspace.
         PythonEval::delete_singleton_instance();
+        fprintf(stderr,"x1\n");
         delete atomSpace;
+        fprintf(stderr,"x2\n");
         atomSpace = NULL;
+        fprintf(stderr,"x3\n");
 
         // Cleanup Python.
         global_python_finalize();
+        fprintf(stderr,"x4\n");
 
-        logger().debug("[PythonEvalUTest] testPythonEvalEvalExpr() DONE");
+        printf("[PythonEvalUTest] testPythonEvalEvalExpr() DONE");
     }
 
     void testApplyAndApplyTV()
@@ -275,11 +279,11 @@ public:
             "from opencog.atomspace import types, Atom, TruthValue\n"
             "def add_link(atom1, atom2):\n"
             "    link = ATOMSPACE.add_link(types.ListLink, [atom1, atom2])\n"
-            "    print 'add_link(',atom1,',',atom2,') = ', link\n"
+            "    print('add_link(',atom1,',',atom2,') = ', link)\n"
             "    return link\n\n"
 
             "def return_truth(atom1, atom2):\n"
-            "    print 'return_truth TruthValue(0.75, 100.0)'\n"
+            "    print('return_truth TruthValue(0.75, 100.0)')\n"
             "    return TruthValue(0.75, 100.0)\n"
             );
 

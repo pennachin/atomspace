@@ -20,7 +20,7 @@ class BindlinkTest(TestCase):
     atomspace = AtomSpace()
 
     def setUp(self):
-        print "setUp - atomspace = ", self.atomspace
+        print("setUp - atomspace = ", self.atomspace)
 
         # Get the config file name in a manner not dependent on the
         # starting working directory.
@@ -55,7 +55,7 @@ class BindlinkTest(TestCase):
                 ).h
 
     def tearDown(self):
-        print "tearDown - atomspace = ", self.atomspace
+        print("tearDown - atomspace = ", self.atomspace)
 
         # Can't do this; finalize can be called only once, ever, and
         # then never again.  The second call will never follow through.

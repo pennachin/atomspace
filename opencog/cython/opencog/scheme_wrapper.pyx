@@ -24,10 +24,12 @@ cdef extern from "<string>" namespace "std":
 cdef extern from "opencog/cython/opencog/PyScheme.h" namespace "opencog":
     string eval_scheme(cAtomSpace& as, const string& s) except +
 
-def scheme_eval(AtomSpace a, char* s):
+def scheme_eval(AtomSpace a,str pys):
     """
     Returns a string value
     """
+    python_bytes = pys.encode("utf-8")
+    cdef char* s = python_bytes
     cdef string ret
     cdef string expr
     expr = string(s)
@@ -37,10 +39,12 @@ def scheme_eval(AtomSpace a, char* s):
 cdef extern from "opencog/cython/opencog/PyScheme.h" namespace "opencog":
     cHandle eval_scheme_h(cAtomSpace& as, const string& s) except +
 
-def scheme_eval_h(AtomSpace a, char* s):
+def scheme_eval_h(AtomSpace a, str pys):
     """
     Returns a Handle
     """
+    python_bytes = pys.encode("utf-8")
+    cdef char* s = python_bytes
     cdef cHandle ret
     cdef string expr
     expr = string(s)
@@ -50,6 +54,10 @@ def scheme_eval_h(AtomSpace a, char* s):
 cdef extern from "opencog/guile/load-file.h" namespace "opencog":
     int load_scm_file_relative (cAtomSpace& as, char* filename) except +
 
-def load_scm(AtomSpace a, char* fname):
-    status = load_scm_file_relative(deref(a.atomspace), fname)
+def load_scm(AtomSpace a, str pyfname):
+    python_bytes = pyfname.encode("utf-8")
+    cdef char* fname = python_bytes
+    status = load_scm_file_relative(deref(a.atomspace),fname)
     return status == 0
+
+
